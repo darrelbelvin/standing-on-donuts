@@ -29,27 +29,23 @@ def show_imgs(imgs):
     plt.show()
 
 dg = load_digits()
+
 kwargs = {'angle_count': 12 * 1, # must be multiple of 4
             'beam_count': 12 * 1,
-            'beam_width': 1,
+            'beam_width': 2,
+            'fork_spread': 1,
             'beam_length': 3,
             'beam_start': 0,
             'beam_round': True,
-            'eval_method': {'sectional': False, 'elimination_width': 3, 'max_n': 2, 'elim_double_ends': True},
-            'sobel_params': {'ksize':1, 'scale':1, 'delta':0,
-                             'ddepth':cv2.CV_64F, 'borderType':cv2.BORDER_DEFAULT}
+            'search_args': dict(img_shape=(8,8), edge_offset = 1, top_n = 2, max_rounds = 10, max_step=4, initial_simplex_size=3),
+            'eval_method': {'sectional': False, 'elimination_width': 2, 'max_n': 2, 'elim_double_ends': True},
             }
 
 dc = DonutCorners(**kwargs)
 
-imgs = []
-for digit in dg.data:
-    dc.fit(digit.reshape(8,8))
-    dc.score_all('pydevd' not in sys.modules)
-    imgs.append(dc.src)
-    imgs.append(dc.scored)
+imgs = dc.transform(dg.data)
 
 from pickle import dump, load
-dump(imgs, open('data/preprocessed2.p', 'wb'))
+dump(imgs, open('data/preprocessed4.p', 'wb'))
 #show_imgs(imgs)
-print(len(dg.target))
+print(imgs[:,-6:])
