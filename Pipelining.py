@@ -1,91 +1,96 @@
-#!/usr/bin/env python
-# coding: utf-8
+checkpoint_file = "./training/checkpoint1.pkl"
+n_calls = 1500
 
-# In[1]:
+from os import path
+resume = path.exists(checkpoint_file)
 
-
-from skopt import BayesSearchCV
+#from skopt import BayesSearchCV
 from skopt.space import Real, Categorical, Integer
+from skopt import gp_minimize
+from skopt import callbacks
+from skopt.callbacks import CheckpointSaver
+from skopt.utils import use_named_args
+from skopt import load
 
 from sklearn.datasets import load_digits
-from sklearn.svm import LinearSVC, SVC
+from sklearn.svm import SVC
 from sklearn.pipeline import Pipeline
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, cross_val_score
 
-
-# In[3]:
-
-
-get_ipython().run_line_magic('load_ext', 'autoreload')
-get_ipython().run_line_magic('autoreload', '2')
+import numpy as np
 
 import sys
 sys.path.append('..')
 from donut_corners.donut_corners import DonutCorners
 
-
-# In[4]:
-
-
 X, y = load_digits(10, True)
+#X, y = X[:100], y[:100]
 X_train, X_test, y_train, y_test = train_test_split(X, y)
 
 def on_step(optim_result):
-    score = opt.best_score_
+    score = optim_result.fun
     print("best score: %s" % score)
-    if score >= 0.99:
-        print('Interrupting!')
-        return True
 
-
-# In[6]:
-
-
-# pipeline class is used as estimator to enable
-# search over different model types
 kwargs = {'angle_count': 12 * 1, # must be multiple of 4
-            'beam_count': 12 * 1,
-            'beam_width': 2,
+            'beam_width': 1.5,
             'fork_spread': 1,
-            'beam_length': 3,
-            'beam_start': 0,
+            'beam_length': 4,
+            'beam_start': 0.5,
             'beam_round': True,
-            'search_args': dict(img_shape=(8,8), edge_offset = 1, top_n = 2, max_rounds = 10, max_step=4, initial_simplex_size=3),
-            'eval_method': {'sectional': False, 'elimination_width': 2, 'max_n': 2, 'elim_double_ends': True},
+            'engineered_only': True,
+            'grid_size': 4,
+            'search_args': dict(img_shape=(8,8), min_grid=0.1, top_n=2, ),
+            'eval_method': {'elimination_width': 2, 'max_n': 2, 'elim_double_ends': True},
             }
 
 pipe = Pipeline([
     ('corners', DonutCorners(**kwargs)),
-    ('model', SVC())
+    ('model', SVC(probability=True))
 ])
 
 # explicit dimension classes can be specified like this
-svc_search = {
-    'corners__fork_spread': Integer(0,2),
-    'corners__beam_length': Integer(2,8),
-    'corners__beam_start': Integer(0,3),
+space = [
+    Real(0, 4, prior='uniform', name='corners__fork_spread'),
+    Real(1.5, 5, prior='uniform', name='corners__beam_width'),
+    Real(4, 8, prior='uniform', name='corners__beam_length'),
+    Real(0,2, name='corners__beam_start'),
+    Categorical([12, 16, 24], name='corners__angle_count')
     #'model__C': Real(1e-6, 1e+6, prior='log-uniform'),
-    #'model__gamma': Real(1e-6, 1e+1, prior='log-uniform'),
     #'model__degree': Integer(1,8),
     #'model__kernel': Categorical(['linear', 'poly', 'rbf']),
-}
+]
 
-opt = BayesSearchCV(
-    pipe,
-    svc_search,
-    n_iter=2,
-    cv=3
-)
+#space  = [Integer(1, 5, name='max_depth'),
+#          Real(10**-5, 10**0, "log-uniform", name='learning_rate'),
+#          Integer(1, n_features, name='max_features'),
+#          Integer(2, 100, name='min_samples_split'),
+#          Integer(1, 100, name='min_samples_leaf')]
 
-opt.fit(X_train, y_train, callback=on_step)
+@use_named_args(space)
+def objective(**params):
+    pipe.set_params(**params)
+    return -np.mean(cross_val_score(pipe, X, y, cv=3, n_jobs=-1,
+                                    scoring="neg_log_loss"))
+
+checkpoint_saver = CheckpointSaver(checkpoint_file, compress=9)
+
+if resume:
+    res = load(checkpoint_file)
+    x0 = res.x_iters
+    y0 = res.func_vals
+    res_gp = gp_minimize(objective, space, n_calls=n_calls, callback = [on_step, checkpoint_saver], x0=x0, y0=y0)
+else:
+    res_gp = gp_minimize(objective, space, n_calls=n_calls, callback = [on_step, checkpoint_saver])
 
 print("-------------------")
-print("val. score: %s" % opt.best_score_)
-print("test score: %s" % opt.score(X_test, y_test))
+print("val. score: %s" % res_gp.fun)
+print(f"""Best parameters:
+- corners__fork_spread = {res_gp.x[0]}
+- corners__beam_width = {res_gp.x[1]}
+- corners__beam_length = {res_gp.x[2]}
+- corners__beam_start = {res_gp.x[3]}
+- corners__angle_count = {res_gp.x[4]}
+""")
 
-
-# In[ ]:
-
-
-
-
+#from skopt.plots import plot_convergence
+#plot_convergence(res_gp)

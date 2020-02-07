@@ -32,20 +32,22 @@ dg = load_digits()
 
 kwargs = {'angle_count': 12 * 1, # must be multiple of 4
             'beam_count': 12 * 1,
-            'beam_width': 2,
+            'beam_width': 1.5,
             'fork_spread': 1,
-            'beam_length': 3,
-            'beam_start': 0,
+            'beam_length': 4,
+            'beam_start': 0.5,
             'beam_round': True,
-            'search_args': dict(img_shape=(8,8), edge_offset = 1, top_n = 2, max_rounds = 10, max_step=4, initial_simplex_size=3),
-            'eval_method': {'sectional': False, 'elimination_width': 2, 'max_n': 2, 'elim_double_ends': True},
+            'grid_size': 4,
+            'search_args': dict(img_shape=(8,8), min_grid=0.1, top_n=2),
+            'eval_method': {'sectional': True, 'elimination_width': 2, 'max_n': 2, 'elim_double_ends': True},
             }
 
 dc = DonutCorners(**kwargs)
 
-imgs = dc.transform(dg.data)
+import cProfile
+prof = cProfile.run('imgs = dc.transform(dg.data)')
 
 from pickle import dump, load
 dump(imgs, open('data/preprocessed4.p', 'wb'))
 #show_imgs(imgs)
-print(imgs[:,-6:])
+print(imgs[:,-14:])

@@ -1,5 +1,6 @@
 # Standing on Donuts
 
+
 - Generate various datasets
     - Original
     - Original + DC corners
@@ -8,3 +9,5 @@
     - Just DC Donuts
     - DC Corners + DC Donuts
 - Train model on each dataset and compare performance
+
+[figures/convergence1.png]
