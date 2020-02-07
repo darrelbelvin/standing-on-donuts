@@ -1,4 +1,4 @@
-checkpoint_file = "./training/checkpoint1.pkl"
+checkpoint_file = "./training/checkpoint_aws_1.pkl"
 n_calls = 1500
 
 from os import path
